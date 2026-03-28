@@ -3,6 +3,10 @@ import 'package:fire_pilot/commands/firebase_setup.dart';
 import 'package:fire_pilot/services/feature_service.dart';
 import 'package:fire_pilot/services/firebase_service.dart';
 
+/// The main entry point for the FirePilot CLI.
+/// 
+/// Parses command-line [arguments] and dispatches them to the 
+/// appropriate service or command handler.
 Future<void> main(List<String> arguments) async {
   final parser = ArgParser();
 

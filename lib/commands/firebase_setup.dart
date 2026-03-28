@@ -7,6 +7,11 @@ import '../services/env_service.dart';
 import '../services/feature_service.dart';
 import '../utils/process_runner.dart';
 
+/// Orchestrates the full Firebase setup flow for a Flutter project.
+/// 
+/// If [full] is true, it performs a comprehensive setup including tool 
+/// checks, login, project creation, and dependency configuration.
+/// The [env] parameter specifies the target environment (e.g., 'dev').
 Future<void> firebaseSetupCommand({
   required bool full,
   required String env,

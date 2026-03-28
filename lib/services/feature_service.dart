@@ -1,7 +1,12 @@
 import '../utils/process_runner.dart';
 
+/// Service for managing Firebase feature activation and deactivation.
 class FeatureService {
-  /// 🔥 Generic Enable Method
+  /// Enables a specific Firebase [feature] for the project.
+  /// 
+  /// Supported features: 'auth', 'firestore', 'fcm'.
+  /// Some features like 'firestore' require a [projectId] for 
+  /// deep-linking to the console.
   Future<void> enable(String feature, {String? projectId}) async {
     final normalized = feature.toLowerCase();
 
@@ -30,7 +35,10 @@ class FeatureService {
     }
   }
 
-  /// ❌ Generic Disable Method
+  /// Disables (or provides instructions for disabling) a [feature].
+  /// 
+  /// Note: Many Firebase features cannot be fully disabled via 
+  /// the CLI and require manual action in the Firebase Console.
   Future<void> disable(String feature) async {
     final normalized = feature.toLowerCase();
 

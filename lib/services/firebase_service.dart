@@ -4,8 +4,22 @@ import 'package:fire_pilot/services/prompt_service.dart';
 
 import '../utils/process_runner.dart';
 
+/// {@template firebase_service}
+/// Service for managing Firebase CLI operations such as login, 
+/// project creation, and SHA registration.
+/// 
+/// This service provides an abstraction over common Firebase CLI 
+/// commands and handles complex multi-account switching logic.
+/// {@endtemplate}
 class FirebaseService {
-  /// 🔐 Check login
+  /// Ensures the user is logged into Firebase and prompts for account 
+  /// selection if multiple accounts are available.
+  /// 
+  /// This method provides:
+  /// * Interactive account selection.
+  /// * Support for adding new accounts (`--reauth` flow).
+  /// * Account switching with automatic session cleanup.
+  /// * Logout functionality.
   Future<void> login() async {
     print('🔐 Checking Firebase account...\n');
 
@@ -124,17 +138,26 @@ class FirebaseService {
     }
   }
 
-  /// 📦 Create Firebase Project
+  /// Creates a new Firebase project with the given [id].
+  /// 
+  /// This command runs in [ProcessStartMode.inheritStdio] mode to 
+  /// allow for interactive project name entry and real-time feedback.
   Future<void> createProject(String id) async {
     await runInteractive('firebase', ['projects:create', id]);
   }
 
-  /// 📝 List Projects
+  /// Lists all Firebase projects associated with the currently 
+  /// authenticated account.
   Future<void> listProjects() async {
     await run('firebase', ['projects:list']);
   }
 
-  /// ⚙️ Configure FlutterFire
+  /// Configures FlutterFire for the current project using the 
+  /// provided [projectId].
+  /// 
+  /// Includes exponential backoff retry logic to handle cases where 
+  /// a newly created project's API hasn't propagated across Google's 
+  /// backend yet.
   Future<void> configure(String projectId) async {
     print('⚙️ Configuring FlutterFire...');
 
@@ -226,7 +249,11 @@ class FirebaseService {
     };
   }
 
-  /// 🔄 Self-healing SHA fetch
+  /// Fetches the SHA-1 and SHA-256 fingerprints for the Android project.
+  /// 
+  /// Attempts to extract fingerprints using the Gradle `signingReport`. 
+  /// If it fails, it will attempt a `flutter build apk` to generate 
+  /// necessary build artifacts and try again.
   Future<Map<String, String>> getShas() async {
     print('🔍 Fetching SHA values...');
 
@@ -250,7 +277,10 @@ class FirebaseService {
     return shas;
   }
 
-  /// 📱 Get Android App ID
+  /// Retrieves the Android App ID (also known as the App Index) 
+  /// from the specified Firebase [projectId].
+  /// 
+  /// Returns null if no Android app is found linked to the project.
   Future<String?> getAndroidAppId(String projectId) async {
     print('🔍 Fetching Android App ID...');
 
@@ -274,7 +304,12 @@ class FirebaseService {
     return null;
   }
 
-  /// 🚀 Setup SHA (SHA-1 + SHA-256)
+  /// Orchestrates the full SHA setup flow for the specified [projectId].
+  /// 
+  /// This includes:
+  /// 1. Fetching SHA-1 and SHA-256 values locally.
+  /// 2. Finding the corresponding Firebase Android App ID.
+  /// 3. Uploading both fingerprints to the Firebase Console.
   Future<void> setupSha(String projectId) async {
     print('🔑 Setting up SHA (SHA-1 + SHA-256)...\n');
 
@@ -324,6 +359,8 @@ class FirebaseService {
   // 🔥 FEATURE SYSTEM
   // =====================================================
 
+  /// Provides helpful CLI instructions for enabling specific Firebase 
+  /// features such as 'auth', 'firestore', or 'fcm'.
   Future<void> enableFeature(String feature) async {
     switch (feature) {
       case 'auth':
@@ -346,6 +383,13 @@ class FirebaseService {
     }
   }
 
+  /// Attempts to parse the `firebase.json` file to identify the 
+  /// linked Firebase project ID.
+  /// 
+  /// Checks multiple lookup paths including:
+  /// * `flutter/platforms/android/default/projectId`
+  /// * `flutter/platforms/ios/default/projectId`
+  /// * `flutter/platforms/dart` map values
   Future<String?> getProjectIdFromFirebaseJson() async {
     final file = File('firebase.json');
 
@@ -393,6 +437,8 @@ class FirebaseService {
     }
   }
 
+  /// Provides warnings and manual instructions for disabling features 
+  /// that cannot be easily undone via the CLI.
   Future<void> disableFeature(String feature) async {
     switch (feature) {
       case 'auth':
