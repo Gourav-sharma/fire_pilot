@@ -1,3 +1,6 @@
+/// Documentation for the process runner utility library.
+library process_runner;
+
 import 'dart:io';
 
 /// Generates an environment map with professional tool paths injected.

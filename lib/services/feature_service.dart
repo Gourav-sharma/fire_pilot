@@ -1,7 +1,13 @@
+/// Documentation for the feature service library.
+library feature_service;
+
 import '../utils/process_runner.dart';
 
 /// Service for managing Firebase feature activation and deactivation.
 class FeatureService {
+  /// Default constructor for [FeatureService].
+  FeatureService();
+
   /// Enables a specific Firebase [feature] for the project.
   /// 
   /// Supported features: 'auth', 'firestore', 'fcm'.

@@ -1,7 +1,13 @@
+/// Documentation for the prompt service library.
+library prompt_service;
+
 import 'package:interact/interact.dart';
 
 /// Service for handling interactive user prompts and selections.
 class PromptService {
+  /// Default constructor for [PromptService].
+  PromptService();
+
   /// Prompts the user for a text input with the given [msg].
   String ask(String msg) => Input(prompt: msg).interact();
 

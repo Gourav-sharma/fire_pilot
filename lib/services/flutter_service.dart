@@ -1,7 +1,13 @@
+/// Documentation for the Flutter service library.
+library flutter_service;
+
 import '../utils/process_runner.dart';
 
 /// Service for managing Flutter-specific dependencies and commands.
 class FlutterService {
+  /// Default constructor for [FlutterService].
+  FlutterService();
+
   /// Adds core Firebase and FlutterFire dependencies to the project.
   Future<void> addDeps() async {
     await run('flutter', [

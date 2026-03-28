@@ -1,6 +1,6 @@
 name: fire_pilot
-description: An elite Firebase setup orchestrator for Flutter. Automates Node.js installation, multi-account management, project creation, and SHA registration for a seamless one-click experience.
-version: 1.0.0
+description: Elite Firebase setup orchestrator for Flutter. Automates Node.js install, multi-account login, project creation, and SHA registration.
+version: 1.0.1
 homepage: https://github.com/Gourav-sharma/fire_pilot
 repository: https://github.com/Gourav-sharma/fire_pilot
 issue_tracker: https://github.com/Gourav-sharma/fire_pilot/issues

@@ -1,3 +1,6 @@
+/// Documentation for the Firebase service library.
+library firebase_service;
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:fire_pilot/services/prompt_service.dart';
@@ -12,6 +15,9 @@ import '../utils/process_runner.dart';
 /// commands and handles complex multi-account switching logic.
 /// {@endtemplate}
 class FirebaseService {
+  /// Default constructor for [FirebaseService].
+  FirebaseService();
+
   /// Ensures the user is logged into Firebase and prompts for account 
   /// selection if multiple accounts are available.
   /// 
