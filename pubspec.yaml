@@ -1,6 +1,9 @@
 name: fire_pilot
-description: Elite Firebase Setup CLI (FirePilot)
-version: 3.1.0
+description: An elite Firebase setup orchestrator for Flutter. Automates Node.js installation, multi-account management, project creation, and SHA registration for a seamless one-click experience.
+version: 1.0.0
+homepage: https://github.com/Gourav-sharma/fire_pilot
+repository: https://github.com/Gourav-sharma/fire_pilot
+issue_tracker: https://github.com/Gourav-sharma/fire_pilot/issues
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

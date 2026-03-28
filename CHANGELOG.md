@@ -1,0 +1,20 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2026-03-28
+
+### ✨ Initial Release (Rebranded as FirePilot)
+
+- **Complete Rebranding**: Project officially renamed from `my_cli` to `FirePilot`.
+- **Automatic Prerequisites**: Added support for auto-installing Node.js via `winget` (Windows) and `homebrew` (macOS).
+- **Environment Injection**: Implemented real-time `PATH` injection to allow tool usage without terminal restarts.
+- **Multi-Account Support**: Added an interactive system to manage and switch between multiple Google accounts.
+- **Forced Re-auth**: Optimized the "Add Account" flow to bypass sticky browser sessions using `--reauth` and session clearing.
+- **SHA-256 Support**: Improved certificate extraction to handle both SHA-1 and SHA-256 for Android apps.
+- **Resilient Config**: Added exponential backoff and retry logic for `flutterfire configure` to handle API propagation delays.
+- **Cross-Platform Audit**: Verified 100% compatibility across Windows and macOS environments.
+- **Real-time Diagnostics**: Switched critical steps to interactive mode for better error visibility (e.g., Quota limits).
