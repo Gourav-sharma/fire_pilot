@@ -1,0 +1,87 @@
+{
+  "roots": [
+    "fire_pilot"
+  ],
+  "packages": [
+    {
+      "name": "fire_pilot",
+      "version": "3.1.0",
+      "dependencies": [
+        "args",
+        "interact"
+      ],
+      "devDependencies": []
+    },
+    {
+      "name": "interact",
+      "version": "2.2.0",
+      "dependencies": [
+        "dart_console",
+        "meta",
+        "tint"
+      ]
+    },
+    {
+      "name": "args",
+      "version": "2.7.0",
+      "dependencies": []
+    },
+    {
+      "name": "tint",
+      "version": "2.0.1",
+      "dependencies": []
+    },
+    {
+      "name": "meta",
+      "version": "1.18.2",
+      "dependencies": []
+    },
+    {
+      "name": "dart_console",
+      "version": "1.2.0",
+      "dependencies": [
+        "characters",
+        "ffi",
+        "intl",
+        "win32"
+      ]
+    },
+    {
+      "name": "characters",
+      "version": "1.4.1",
+      "dependencies": []
+    },
+    {
+      "name": "intl",
+      "version": "0.18.1",
+      "dependencies": [
+        "clock",
+        "meta",
+        "path"
+      ]
+    },
+    {
+      "name": "win32",
+      "version": "5.15.0",
+      "dependencies": [
+        "ffi"
+      ]
+    },
+    {
+      "name": "ffi",
+      "version": "2.2.0",
+      "dependencies": []
+    },
+    {
+      "name": "path",
+      "version": "1.9.1",
+      "dependencies": []
+    },
+    {
+      "name": "clock",
+      "version": "1.1.2",
+      "dependencies": []
+    }
+  ],
+  "configVersion": 1
+}
