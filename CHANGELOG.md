@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-04-03
+
+### 🛠️ Process Execution & Interactivity Fix
+
+- **Interactive Run**: Switched the default `run` behavior to use `inheritStdio`. This fixes hangs during version checks and allows users to respond to interactive prompts (like `flutterfire` update checks) in real-time.
+- **Improved Tool Installation**: Updated tool installation methods (npm, flutterfire) to use the interactive run, providing better visibility and manual error handling.
+
 ## [1.0.1] - 2026-03-28
 
 ### 🚀 Pub.dev Optimization & Documentation

@@ -249,39 +249,12 @@ Future<bool> _isCommandAvailable(String cmd) async {
 }
 
 Future<void> _installFirebaseCli(String npmCmd, String? nodeDir) async {
-  final Map<String, String> env = getInjectedEnvironment();
-
-  final result = await Process.run(
-    npmCmd,
-    ['install', '-g', 'firebase-tools'],
-    runInShell: true,
-    environment: env,
-  );
-
-  print(result.stdout);
-  print(result.stderr);
-
-  if (result.exitCode != 0) {
-    throw Exception('Failed to install Firebase CLI');
-  }
-
+  await run(npmCmd, ['install', '-g', 'firebase-tools']);
   print('✅ Firebase CLI installed');
 }
 
 Future<void> _installFlutterFire() async {
-  final result = await Process.run(
-    'dart',
-    ['pub', 'global', 'activate', 'flutterfire_cli'],
-    runInShell: true,
-  );
-
-  print(result.stdout);
-  print(result.stderr);
-
-  if (result.exitCode != 0) {
-    throw Exception('Failed to install FlutterFire CLI');
-  }
-
+  await run('dart', ['pub', 'global', 'activate', 'flutterfire_cli']);
   print('✅ FlutterFire CLI installed');
 }
 

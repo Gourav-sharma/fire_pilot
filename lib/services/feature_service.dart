@@ -2,6 +2,7 @@
 library feature_service;
 
 import '../utils/process_runner.dart';
+import 'flutter_service.dart';
 
 /// Service for managing Firebase feature activation and deactivation.
 class FeatureService {
@@ -18,21 +19,15 @@ class FeatureService {
 
     switch (normalized) {
       case 'auth':
-        await _enableAuth();
+        await _enableAuth(projectId);
         break;
 
       case 'firestore':
-        if (projectId == null || projectId.isEmpty) {
-          print('❌ Project ID is required for Firestore');
-          print('👉 Use setup command or pass projectId properly');
-          return;
-        }
-
         await _enableFirestore(projectId);
         break;
 
       case 'fcm':
-        await _enableFCM();
+        await _enableFCM(projectId);
         break;
 
       default:
@@ -79,29 +74,70 @@ class FeatureService {
   // PRIVATE IMPLEMENTATIONS
   // =============================
 
-  Future<void> _enableAuth() async {
+  Future<void> _enableAuth(String? projectId) async {
     print('🔐 Enabling Firebase Auth...\n');
-    print('👉 Firebase Console → Authentication → Enable providers');
+    
+    // 1. Add dependency
+    await FlutterService().addDep('firebase_auth');
+
+    // 2. Open Console
+    if (projectId != null) {
+      final url = 'https://console.firebase.google.com/project/$projectId/authentication';
+      print('🌐 Opening Authentication Console...');
+      print(url);
+      await openUrl(url);
+    }
+
+    print('\n✅ Project set up with firebase_auth');
+    print('👉 Next Step: Enable providers (Google, Email) in the Console.');
   }
 
-  Future<void> _enableFirestore(String projectId) async {
+  Future<void> _enableFirestore(String? projectId) async {
     print('🗄️ Enabling Firestore...\n');
 
-    final url =
-        'https://console.firebase.google.com/project/$projectId/firestore';
+    // 1. Add dependency
+    await FlutterService().addDep('cloud_firestore');
 
-    print('🌐 Opening Firestore Console...');
-    print(url);
-    await openUrl(url);
+    // 2. Attempt CLI creation
+    if (projectId != null) {
+      try {
+        print('🚀 Initializing Firestore Database for $projectId...');
+        await run('firebase', [
+          'firestore:databases:create',
+          '--project=$projectId',
+          '--location=us-central1'
+        ]);
+      } catch (e) {
+        print('⚠️ Automatic DB creation skipped (It might already exist)');
+      }
 
-    print('\n👉 Steps:');
-    print('1. Click "Create Database"');
-    print('2. Select region');
+      final url = 'https://console.firebase.google.com/project/$projectId/firestore';
+      print('\n🌐 Opening Firestore Console...');
+      print(url);
+      await openUrl(url);
+    } else {
+      print('❌ Project ID missing. Unable to create database via CLI.');
+    }
+
+    print('\n✅ Project set up with cloud_firestore');
   }
 
-  Future<void> _enableFCM() async {
+  Future<void> _enableFCM(String? projectId) async {
     print('🔔 Setting up FCM...\n');
-    print('👉 Add firebase_messaging package');
-    print('👉 Configure Android & iOS permissions');
+
+    // 1. Add dependency
+    await FlutterService().addDep('firebase_messaging');
+
+    // 2. Open Console
+    if (projectId != null) {
+      final url = 'https://console.firebase.google.com/project/$projectId/messaging';
+      print('🌐 Opening Cloud Messaging Console...');
+      print(url);
+      await openUrl(url);
+    }
+
+    print('\n✅ Project set up with firebase_messaging');
+    print('👉 Next Step (iOS): Add "Push Notifications" and "Background Modes" in Xcode.');
+    print('👉 Next Step (Android): No additional config usually needed for core messaging.');
   }
 }

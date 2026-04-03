@@ -55,9 +55,9 @@ Future<void> openUrl(String url) async {
 
 /// Runs a [cmd] with [args] and returns when the process completes.
 /// 
-/// This is a convenience wrapper around [runWithResult].
+/// Uses [runInteractive] to ensure real-time feedback and interactivity.
 Future<void> run(String cmd, List<String> args) async {
-  await runWithResult(cmd, args);
+  await runInteractive(cmd, args);
 }
 
 /// Runs a [cmd] with [args] and returns the [ProcessResult].

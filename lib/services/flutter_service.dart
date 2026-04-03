@@ -19,4 +19,10 @@ class FlutterService {
       'firebase_messaging'
     ]);
   }
+
+  /// Adds a single dependency to the project.
+  Future<void> addDep(String package) async {
+    print('📦 Installing $package...');
+    await run('flutter', ['pub', 'add', package]);
+  }
 }
