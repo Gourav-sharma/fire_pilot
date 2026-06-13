@@ -1,5 +1,6 @@
 import 'package:args/args.dart';
 import 'package:fire_pilot/commands/firebase_setup.dart';
+import 'package:fire_pilot/commands/force_update.dart';
 import 'package:fire_pilot/services/feature_service.dart';
 import 'package:fire_pilot/services/firebase_service.dart';
 
@@ -27,6 +28,10 @@ Future<void> main(List<String> arguments) async {
   final sha = firebase.addCommand('sha');
   final shaAdd = sha.addCommand('add');
   shaAdd.addOption('project');
+
+  /// 🔹 FORCE UPDATE COMMAND
+  final forceUpdate = firebase.addCommand('force-update');
+  forceUpdate.addOption('path', defaultsTo: 'lib/services/remote_config_service.dart');
 
   final result = parser.parse(arguments);
 
@@ -90,6 +95,15 @@ Future<void> main(List<String> arguments) async {
         return;
       }
     }
+
+    /// 🚀 FORCE UPDATE
+    if (sub?.name == 'force-update') {
+      final cmd = sub!;
+      await firebaseForceUpdateCommand(
+        path: cmd['path'],
+      );
+      return;
+    }
   }
 
   /// 🔻 DEFAULT HELP
@@ -97,10 +111,12 @@ Future<void> main(List<String> arguments) async {
   print('  fire_pilot firebase setup --full --env=dev');
   print('  fire_pilot firebase enable <feature>');
   print('  fire_pilot firebase disable <feature>');
-  print('  fire_pilot firebase sha add --project=<projectId>\n');
+  print('  fire_pilot firebase sha add --project=<projectId>');
+  print('  fire_pilot firebase force-update --path=<filePath>\n');
 
   print('Examples:');
   print('  fire_pilot firebase enable auth');
   print('  fire_pilot firebase disable firestore');
   print('  fire_pilot firebase sha add --project=my-app');
+  print('  fire_pilot firebase force-update');
 }
