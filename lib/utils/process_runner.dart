@@ -62,10 +62,14 @@ Future<void> run(String cmd, List<String> args) async {
 
 /// Runs a [cmd] with [args] and returns the [ProcessResult].
 /// 
-/// Capture stdout/stderr and prints them to the console. 
+/// Capture stdout/stderr and prints them to the console unless [silent] is true. 
 /// Throws an [Exception] if the exit code is non-zero.
-Future<ProcessResult> runWithResult(String cmd, List<String> args) async {
-  print('👉 Running: $cmd ${args.join(" ")}\n');
+Future<ProcessResult> runWithResult(
+  String cmd,
+  List<String> args, {
+  bool silent = false,
+}) async {
+  if (!silent) print('👉 Running: $cmd ${args.join(" ")}\n');
 
   final env = getInjectedEnvironment();
 
@@ -77,27 +81,29 @@ Future<ProcessResult> runWithResult(String cmd, List<String> args) async {
       environment: env,
     );
 
-    /// ✅ STDOUT
-    if (result.stdout.toString().isNotEmpty) {
-      stdout.write(result.stdout);
-    }
+    if (!silent) {
+      /// ✅ STDOUT
+      if (result.stdout.toString().isNotEmpty) {
+        stdout.write(result.stdout);
+      }
 
-    /// ❌ STDERR
-    if (result.stderr.toString().isNotEmpty) {
-      stderr.write(result.stderr);
+      /// ❌ STDERR
+      if (result.stderr.toString().isNotEmpty) {
+        stderr.write(result.stderr);
+      }
     }
 
     /// ❌ Exit Code Check
     if (result.exitCode != 0) {
-      throw Exception(
-        '$cmd failed with exit code ${result.exitCode}',
-      );
+      final errorMsg = '$cmd failed with exit code ${result.exitCode}';
+      if (!silent) print('\n❌ $errorMsg');
+      throw Exception(errorMsg);
     }
 
-    print('\n✅ $cmd completed\n');
+    if (!silent) print('\n✅ $cmd completed\n');
     return result;
   } catch (e) {
-    print('\n❌ Error while running $cmd');
+    if (!silent) print('\n❌ Error while running $cmd: $e');
     rethrow;
   }
 }
@@ -123,12 +129,19 @@ Future<void> runInteractive(String cmd, List<String> args) async {
     final exitCode = await process.exitCode;
 
     if (exitCode != 0) {
+      print('\n❌ $cmd failed with exit code $exitCode');
+      
+      if (cmd == 'flutterfire' && args.contains('configure')) {
+        print('\n💡 TIP: Try running the command manually for detailed errors:');
+        print('👉 flutterfire configure --project=YOUR_PROJECT_ID\n');
+      }
+      
       throw Exception('$cmd failed with exit code $exitCode');
     }
 
     print('\n✅ $cmd completed\n');
   } catch (e) {
-    print('\n❌ Error while running interactive $cmd');
+    print('\n❌ Error while running interactive $cmd: $e');
     rethrow;
   }
 }

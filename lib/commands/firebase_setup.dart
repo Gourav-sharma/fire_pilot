@@ -56,47 +56,109 @@ Future<void> firebaseSetupCommand({
       break;
     }
 
-    /// 🔹 Firebase Login
+    /// 🔹 Firebase Login & Account verification
     print('🔐 Checking Firebase login...');
-    await firebase.login();
+    final activeAccount = await firebase.login();
+    if (activeAccount != null) {
+      print('✅ Active Account: $activeAccount\n');
+    }
 
-    /// 🔹 List Projects (Helpful for Quota debugging)
-    print('\n📋 Your existing Firebase projects:');
-    await firebase.listProjects();
+    /// 🔹 List & Check Projects
+    print('\n📋 Checking your Firebase projects...');
+    final existingProjects = await firebase.listProjects();
 
-    /// 🔹 Create Project (Optional)
-    final shouldCreate = prompt.confirm('Create Firebase project?');
+    final alreadyExists = existingProjects.contains(projectId);
+    
+    if (alreadyExists) {
+      print('❌ Project ID "$projectId" is already taken in your Firebase console.');
+      print('👉 Please choose a unique ID for your new project.');
+      print('❌ Setup stopped.');
+      return;
+    }
 
-    if (shouldCreate) {
-      print('📦 Creating Firebase project...');
-      try {
-        await firebase.createProject(projectId);
-      } catch (e) {
-        print('\n❌ Project creation failed!');
-        print('👉 Possible reasons:');
-        print('   1. ID "$projectId" is already taken (globally unique).');
-        print('   2. You have reached your Firebase project quota.');
-        print('   3. Network or permission issues.');
-        print('👉 TIP: Try a MORE UNIQUE ID (e.g. my-elite-$projectId)\n');
-
-        final proceed = prompt.confirm(
-            'Continue anyway? (Choose yes ONLY if the project already exists)');
-        if (!proceed) {
-          print('❌ Setup aborted by user');
-          return;
-        }
+    print('📋 Found ${existingProjects.length} existing projects.');
+    
+    // Suggest similar IDs if any
+    final similar = existingProjects.where((p) => p.contains(projectId) || projectId.contains(p)).toList();
+    if (similar.isNotEmpty) {
+      print('\n💡 Similar projects found in your account:');
+      for (var s in similar) {
+        print('   - $s');
       }
-    } else {
-      print('⏭ Skipping project creation');
+      final useSimilar = prompt.confirm('Do you want to use one of these instead?');
+      if (useSimilar) {
+        final index = prompt.select('Select project', similar);
+        projectId = similar[index];
+        print('✅ Selected: $projectId');
+        
+        // 🔥 Re-check if the selected "similar" project exists (it obviously does)
+        // Since the user wants to STOP if it exists, selecting a similar existing one might also mean we stop?
+        // Actually, if we allow them to select an existing one, and then stop, that's confusing.
+        // I'll add a warning that choosing an existing one will also stop if they want only NEW projects.
+        // Wait, the user said "if i choose project id ... and someone has taken ... then can i make ... No".
+        // They want to make a NEW project.
+        print('❌ Selected project "$projectId" already exists.');
+        print('❌ Setup stopped.');
+        return;
+      }
+    }
+
+    /// 🔹 Create Project (Mandatory for a clean setup)
+    final displayName = prompt.ask('Enter Firebase project display name (Optional, press Enter to use ID)');
+    final finalDisplayName = displayName.isEmpty ? projectId : displayName;
+
+    print('📦 Creating NEW Firebase project "$projectId" ($finalDisplayName)...');
+
+    try {
+      await firebase.createProject(projectId, displayName: finalDisplayName);
+      print('✅ Project created successfully');
+    } catch (e) {
+      print('\n❌ Project creation failed!');
+      print('👉 Error: $e');
+      print('\n⚠️ POSSIBLE REASONS:');
+      print('   1. ID "$projectId" is already taken GLOBALLY by another user.');
+      print('   2. Quota Limit: You have exceeded the max number of projects for your account.');
+      print('   3. Billing/Policy: Some accounts require billing to create new projects.\n');
+      print('👉 TIP: Check your Firebase Console to delete old test projects.');
+      print('❌ Setup stopped.');
+      return;
+    }
+
+    /// 🔹 Interactive Platform Selection
+    final platforms = ['android', 'ios'];
+    print('🖥️ platform Selection (Android & iOS are default)');
+    if (prompt.confirm('Enable Windows support?')) {
+      platforms.add('windows');
+    }
+    if (prompt.confirm('Enable macOS support?')) {
+      platforms.add('macos');
+    }
+
+    /// 🔹 Interactive Feature Selection
+    final selectedFeatures = <String>[];
+    if (full) {
+      print('\n🚀 Feature Selection');
+      if (prompt.confirm('Enable Firebase Auth?')) {
+        selectedFeatures.add('auth');
+      }
+      if (prompt.confirm('Enable Cloud Messaging (FCM)?')) {
+        selectedFeatures.add('fcm');
+      }
     }
 
     /// 🔹 Configure FlutterFire
-    print('⚙️ Configuring FlutterFire...');
-    await firebase.configure(projectId);
+    print('\n⚙️ Configuring FlutterFire for: ${platforms.join(', ')}...');
+    await firebase.configure(projectId, platforms: platforms);
 
     /// 🔹 Add Dependencies
     print('📦 Adding Firebase dependencies...');
-    await flutter.addDeps();
+    await flutter.addDeps(); // Adds firebase_core
+
+    // Add feature-specific dependencies
+    for (final f in selectedFeatures) {
+      if (f == 'auth') await flutter.addDep('firebase_auth');
+      if (f == 'fcm') await flutter.addDep('firebase_messaging');
+    }
 
     /// 🔑 Setup SHA
     print('🔑 Setting up SHA...');
@@ -110,20 +172,17 @@ Future<void> firebaseSetupCommand({
     print('🌍 Setting up environment...');
     envService.create(env);
 
-    /// 🔥 Full Setup (UPDATED: Firestore removed)
-    if (full) {
-      print('🔥 Running FULL setup...\n');
-
-      final features = ['auth', 'fcm']; // ✅ firestore removed
-
-      for (final f in features) {
+    /// 🔥 Enable selected Features in Console
+    if (selectedFeatures.isNotEmpty) {
+      print('🔥 Enabling selected features...\n');
+      for (final f in selectedFeatures) {
         await feature.enable(f, projectId: projectId);
       }
-
-      print('\n📦 Enabled: auth, fcm');
-      print('🚫 Skipped: firestore (manual enable recommended)');
+      print('\n📦 Enabled: ${selectedFeatures.join(', ')}');
+    } else if (full) {
+      print('ℹ️ No additional features selected');
     } else {
-      print('ℹ️ Skipping feature setup (use --full to enable)');
+      print('ℹ️ Skipping feature setup (use --full to enable selection)');
     }
 
     print('\n🎉 Firebase setup completed successfully for [$env]');

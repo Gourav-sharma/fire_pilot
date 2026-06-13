@@ -21,12 +21,8 @@ class FirebaseService {
   /// Ensures the user is logged into Firebase and prompts for account 
   /// selection if multiple accounts are available.
   /// 
-  /// This method provides:
-  /// * Interactive account selection.
-  /// * Support for adding new accounts (`--reauth` flow).
-  /// * Account switching with automatic session cleanup.
-  /// * Logout functionality.
-  Future<void> login() async {
+  /// Returns the email of the selected active account.
+  Future<String?> login() async {
     print('🔐 Checking Firebase account...\n');
 
     try {
@@ -59,6 +55,7 @@ class FirebaseService {
       // Fallback: If only one account exists, it must be the current one
       if (allAccounts.length == 1 && currentAccount == null) {
         currentAccount = allAccounts.first;
+        return currentAccount;
       }
 
       // If no accounts, need to log in
@@ -66,7 +63,7 @@ class FirebaseService {
         print('❌ No Firebase accounts found');
         print('📦 Triggering interactive login...\n');
         await runInteractive('firebase', ['login']);
-        return;
+        return login(); // Recursive check
       }
 
       // If we have accounts, ask which one to use
@@ -102,21 +99,18 @@ class FirebaseService {
 
         // Refresh the check to show the new account list
         print('\n🔄 Refreshing account list...');
-        await login();
-        return;
+        return login();
       } else if (index == allAccounts.length + 1) {
         // Logout
         if (currentAccount != null) {
           print('🚫 Logging out from $currentAccount...\n');
           await run('firebase', ['logout', currentAccount]);
           print('✅ Logged out successfully');
-          await login(); // Refresh
-          return;
+          return login(); // Refresh
         } else {
           print('🚫 Logging out from all accounts...\n');
           await run('firebase', ['logout']);
-          await login();
-          return;
+          return login();
         }
       } else {
         final selectedEmail = allAccounts[index];
@@ -131,10 +125,10 @@ class FirebaseService {
           print('📦 Now please log in to $selectedEmail in the browser...\n');
           await runInteractive('firebase', ['login']);
           
-          await login(); // Re-verify to confirm switch worked
-          return;
+          return login(); // Re-verify to confirm switch worked
         } else {
           print('✅ Using active account: $selectedEmail');
+          return selectedEmail;
         }
       }
 
@@ -144,18 +138,49 @@ class FirebaseService {
     }
   }
 
-  /// Creates a new Firebase project with the given [id].
-  /// 
-  /// This command runs in [ProcessStartMode.inheritStdio] mode to 
-  /// allow for interactive project name entry and real-time feedback.
-  Future<void> createProject(String id) async {
-    await runInteractive('firebase', ['projects:create', id]);
+  Future<void> createProject(String id, {String? displayName}) async {
+    final List<String> args = ['projects:create', id];
+    if (displayName != null) {
+      args.add('--display-name=$displayName');
+    }
+    await runInteractive('firebase', args);
   }
 
   /// Lists all Firebase projects associated with the currently 
-  /// authenticated account.
-  Future<void> listProjects() async {
+  /// authenticated account and returns their IDs.
+  Future<List<String>> listProjects() async {
+    // 1. Show the pretty table to the user (as requested)
     await run('firebase', ['projects:list']);
+
+    // 2. Fetch JSON silently for programmatic parsing
+    try {
+      final result = await runWithResult(
+        'firebase', 
+        ['projects:list', '--json'],
+        silent: true,
+      );
+      final decoded = jsonDecode(result.stdout.toString()) as Map<String, dynamic>;
+      
+      final projects = <String>[];
+      if (decoded.containsKey('result')) {
+        final list = decoded['result'] as List<dynamic>;
+        for (var p in list) {
+          if (p is Map && p.containsKey('projectId')) {
+            projects.add(p['projectId'] as String);
+          }
+        }
+      }
+      return projects;
+    } catch (e) {
+      print('⚠️ Failed to fetch projects as JSON for internal validation.');
+      return [];
+    }
+  }
+
+  /// Checks if a project with the given [id] already exists.
+  Future<bool> projectExists(String id) async {
+    final projects = await listProjects();
+    return projects.contains(id);
   }
 
   /// Configures FlutterFire for the current project using the 
@@ -164,7 +189,10 @@ class FirebaseService {
   /// Includes exponential backoff retry logic to handle cases where 
   /// a newly created project's API hasn't propagated across Google's 
   /// backend yet.
-  Future<void> configure(String projectId) async {
+  /// 
+  /// The [platforms] parameter specifies which platforms to configure 
+  /// (e.g., 'android', 'ios', 'macos', 'web', 'windows').
+  Future<void> configure(String projectId, {List<String>? platforms}) async {
     print('⚙️ Configuring FlutterFire...');
 
     try {
@@ -178,6 +206,16 @@ class FirebaseService {
     int retryCount = 0;
     const maxRetries = 5;
 
+    final args = [
+      'configure',
+      '--project=$projectId',
+      '--yes',
+    ];
+
+    if (platforms != null && platforms.isNotEmpty) {
+      args.add('--platforms=${platforms.join(',')}');
+    }
+
     while (retryCount < maxRetries) {
       try {
         if (retryCount > 0) {
@@ -187,11 +225,7 @@ class FirebaseService {
           print('🔄 Retrying configuration (Attempt ${retryCount + 1}/$maxRetries)...');
         }
 
-        await run('flutterfire', [
-          'configure',
-          '--project=$projectId',
-          '--yes',
-        ]);
+        await run('flutterfire', args);
         return; // Success
       } catch (e) {
         retryCount++;
