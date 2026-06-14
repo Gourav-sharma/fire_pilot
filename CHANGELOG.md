@@ -5,13 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.3] - 2026-04-06
+## [1.0.3] - 2026-06-15
 
 ### 🛠️ FlutterFire & Project Creation Fixes
 
 - **Enhanced Interactivity**: Users are now prompted to choose which platforms (Windows, macOS) and features (Auth, FCM) to enable during setup, giving full control over the project footprint.
 - **Improved Dependency Management**: Only core dependencies are added by default; optional features now add their own packages individually.
 - **Strict ID Enforcement**: The tool now stops immediately if a project ID is already taken in the user's console or globally, preventing redundant or incorrect configurations.
+
+### 🚀 Firebase Force Update
+
+- **Force Update Command**: Added the `firebase force-update` command to automate setting up force and optional update dialogs. This automatically adds required dependencies (`firebase_remote_config`, `package_info_plus`, `url_launcher`), creates a `RemoteConfigService` wrapper, and generates premium customizable update dialogs.
 
 ## [1.0.2] - 2026-04-03
 
