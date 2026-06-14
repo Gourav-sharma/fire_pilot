@@ -192,7 +192,54 @@ class FirebaseService {
   /// 
   /// The [platforms] parameter specifies which platforms to configure 
   /// (e.g., 'android', 'ios', 'macos', 'web', 'windows').
-  Future<void> configure(String projectId, {List<String>? platforms}) async {
+  /// Detects the default Android package name from `android/app/build.gradle`.
+  String? detectAndroidPackageName() {
+    try {
+      final file = File('android/app/build.gradle');
+      if (!file.existsSync()) return null;
+      final content = file.readAsStringSync();
+      
+      // Match: applicationId "com.example" or applicationId = "com.example"
+      final match = RegExp(r'''applicationId\s*=?\s*["']([^"']+)["']''').firstMatch(content);
+      if (match != null) {
+        return match.group(1);
+      }
+    } catch (e) {
+      print('⚠️ Failed to detect Android package name: $e');
+    }
+    return null;
+  }
+
+  /// Detects the default iOS bundle identifier from `ios/Runner.xcodeproj/project.pbxproj`.
+  String? detectIosBundleId() {
+    try {
+      final file = File('ios/Runner.xcodeproj/project.pbxproj');
+      if (!file.existsSync()) return null;
+      final content = file.readAsStringSync();
+      
+      // Match: PRODUCT_BUNDLE_IDENTIFIER = com.example.app;
+      final match = RegExp(r'''PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;]+);''').firstMatch(content);
+      if (match != null) {
+        return match.group(1)?.trim().replaceAll('"', '').replaceAll("'", "");
+      }
+    } catch (e) {
+      print('⚠️ Failed to detect iOS bundle identifier: $e');
+    }
+    return null;
+  }
+
+  /// Configures FlutterFire for the current project using the 
+  /// provided [projectId].
+  /// 
+  /// Includes exponential backoff retry logic to handle cases where 
+  /// a newly created project's API hasn't propagated across Google's 
+  /// backend yet.
+  /// 
+  /// The [platforms] parameter specifies which platforms to configure 
+  /// (e.g., 'android', 'ios', 'macos', 'web', 'windows').
+  /// 
+  /// The [env] parameter specifies the target environment name (e.g., 'dev').
+  Future<void> configure(String projectId, {List<String>? platforms, String? env}) async {
     print('⚙️ Configuring FlutterFire...');
 
     try {
@@ -203,12 +250,71 @@ class FirebaseService {
       rethrow;
     }
 
+    final defaultAndroidPackage = detectAndroidPackageName();
+    final defaultIosBundle = detectIosBundleId();
+
+    print('🔎 Detected default Android package: $defaultAndroidPackage');
+    print('🔎 Detected default iOS bundle ID: $defaultIosBundle');
+
+    final finalAndroidPackage = defaultAndroidPackage ?? 'com.example.app';
+    final finalIosBundle = defaultIosBundle ?? 'com.example.app';
+
+    // 1. Configure default environment
+    print('\n⚙️ [Default Environment] Configuring apps in Firebase...');
+    await _runFlutterFireConfigure(
+      projectId: projectId,
+      platforms: platforms,
+      androidPackageName: finalAndroidPackage,
+      iosBundleId: finalIosBundle,
+      androidOut: 'android/app/google-services.json',
+      iosOut: 'ios/Runner/GoogleService-Info.plist',
+      outPath: 'lib/firebase_options.dart',
+    );
+
+    // 2. Configure custom/dev environment if specified
+    if (env != null && env.isNotEmpty) {
+      print('\n⚙️ [$env Environment] Configuring apps in Firebase...');
+      
+      final envAndroidPackage = '$finalAndroidPackage.$env';
+      final envIosBundle = '$finalIosBundle.$env';
+
+      // Ensure target directories exist
+      Directory('lib/config/$env').createSync(recursive: true);
+      Directory('ios/Runner/$env').createSync(recursive: true);
+      Directory('android/app/src/$env').createSync(recursive: true);
+
+      await _runFlutterFireConfigure(
+        projectId: projectId,
+        platforms: platforms,
+        androidPackageName: envAndroidPackage,
+        iosBundleId: envIosBundle,
+        androidOut: 'android/app/src/$env/google-services.json',
+        iosOut: 'ios/Runner/$env/GoogleService-Info.plist',
+        outPath: 'lib/config/$env/firebase_options.dart',
+      );
+    }
+  }
+
+  Future<void> _runFlutterFireConfigure({
+    required String projectId,
+    required List<String>? platforms,
+    required String androidPackageName,
+    required String iosBundleId,
+    required String androidOut,
+    required String iosOut,
+    required String outPath,
+  }) async {
     int retryCount = 0;
     const maxRetries = 5;
 
     final args = [
       'configure',
       '--project=$projectId',
+      '--android-package-name=$androidPackageName',
+      '--ios-bundle-id=$iosBundleId',
+      '--android-out=$androidOut',
+      '--ios-out=$iosOut',
+      '--out=$outPath',
       '--yes',
     ];
 

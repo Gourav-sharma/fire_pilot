@@ -148,7 +148,7 @@ Future<void> firebaseSetupCommand({
 
     /// 🔹 Configure FlutterFire
     print('\n⚙️ Configuring FlutterFire for: ${platforms.join(', ')}...');
-    await firebase.configure(projectId, platforms: platforms);
+    await firebase.configure(projectId, platforms: platforms, env: env);
 
     /// 🔹 Add Dependencies
     print('📦 Adding Firebase dependencies...');

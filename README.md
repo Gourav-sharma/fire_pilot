@@ -41,6 +41,61 @@ fire_pilot firebase setup --full
 | `firebase sha add` | Automatically extract and add SHA keys to your Firebase project. |
 | `firebase login` | Manage and switch between multiple Google accounts. |
 | `firebase enable <feature>` | Quickly enable Firebase features (auth, firestore, etc). |
+| `firebase force-update` | Generate a Remote Config Force Update service and UI Dialogs. |
+
+### 🚀 Firebase Force Update Setup
+
+Setting up a force-update or optional-update mechanism is as simple as running:
+
+```bash
+fire_pilot firebase force-update --path=lib/services/remote_config_service.dart
+```
+
+This command will:
+1. Add necessary dependencies (`firebase_remote_config`, `package_info_plus`, and `url_launcher`) to your `pubspec.yaml`.
+2. Generate a ready-to-use `RemoteConfigService` class at the specified path.
+3. Auto-generate premium, beautiful dialogs (`ForceUpdateDialog` and `OptionalUpdateDialog`) inside `update_dialogs.dart` in the same directory.
+
+#### 🛰️ Firebase Console Setup
+In your Firebase Console, navigate to **Remote Config** and add the following parameters:
+
+| Parameter Key | Type | Default Value | Description |
+|---|---|---|---|
+| `is_force_update` | Boolean | `false` | If `true`, a non-dismissible force update is triggered. If `false`, a dismissible optional update is triggered. |
+| `min_version_android` | String | `1.0.0` | The minimum required/recommended version for Android (e.g., `1.1.0`). |
+| `min_version_ios` | String | `1.0.0` | The minimum required/recommended version for iOS (e.g., `1.1.0`). |
+| `store_url_android` | String | `https://play.google.com/store/apps/details?id=your.package` | Play Store URL of your app. |
+| `store_url_ios` | String | `https://apps.apple.com/app/idyour-app-id` | App Store URL of your app. |
+
+#### 💻 Integration Code Snippet
+To use the generated service in your Flutter application:
+
+1. **Initialize in `main.dart`**:
+   ```dart
+   void main() async {
+     WidgetsFlutterBinding.ensureInitialized();
+     await Firebase.initializeApp();
+     
+     // Initialize the RemoteConfigService
+     final remoteConfig = RemoteConfigService();
+     await remoteConfig.initialize();
+     
+     runApp(const MyApp());
+   }
+   ```
+
+2. **Trigger Dialog Checks on App Launch**:
+   Call the dialog trigger inside the `initState` of your main screen widget (e.g., `HomeScreen` or `MyHomePage`, **not** in the root `MyApp` widget, since the context needs to be a descendant of `MaterialApp` to access the navigator and localizations):
+   ```dart
+   @override
+   void initState() {
+     super.initState();
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+       // Automatically checks configuration and shows the correct dialog
+       RemoteConfigService().checkAndShowUpdateDialog(context);
+     });
+   }
+   ```
 
 ---
 

@@ -57,6 +57,12 @@ Future<void> firebaseForceUpdateCommand({
     print('ℹ️ package_info_plus already exists in pubspec.yaml');
   }
 
+  if (!pubspecContent.contains('url_launcher')) {
+    await flutter.addDep('url_launcher');
+  } else {
+    print('ℹ️ url_launcher already exists in pubspec.yaml');
+  }
+
   print('\n⚙️ Configuring Force Update service in: $path\n');
 
   // 4. Setup imports
@@ -64,18 +70,19 @@ Future<void> firebaseForceUpdateCommand({
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:firebase_remote_config/firebase_remote_config.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:package_info_plus/package_info_plus.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:flutter/foundation.dart';");
+  CodeGeneratorHelper.addImportIfMissing(path, "import 'package:flutter/material.dart';");
+  CodeGeneratorHelper.addImportIfMissing(path, "import 'update_dialogs.dart';");
 
   // 5. Setup Class
   const classTemplate = '''class RemoteConfigService {
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
-  // Force update — app cannot be used below this version
+  // Force update boolean key — if true, force update is active; if false, optional update is active
+  static const String _isForceUpdateKey = 'is_force_update';
+
+  // Target/minimum version keys (optional update if is_force_update is false)
   static const String _minVersionAndroidKey = 'min_version_android';
   static const String _minVersionIosKey = 'min_version_ios';
-
-  // Optional update — nudge users to upgrade to the latest version
-  static const String _latestVersionAndroidKey = 'latest_version_android';
-  static const String _latestVersionIosKey = 'latest_version_ios';
 
   // Store URLs
   static const String _storeUrlAndroidKey = 'store_url_android';
@@ -87,10 +94,9 @@ Future<void> firebaseForceUpdateCommand({
   // 6. Setup Methods
   const initializeTemplate = '''Future<void> initialize() async {
     await _remoteConfig.setDefaults({
+      _isForceUpdateKey: false,
       _minVersionAndroidKey: '1.0.0',
       _minVersionIosKey: '1.0.0',
-      _latestVersionAndroidKey: '1.0.0',
-      _latestVersionIosKey: '1.0.0',
       _storeUrlAndroidKey: 'https://play.google.com/store/apps/details?id=your.package.name',
       _storeUrlIosKey: 'https://apps.apple.com/app/idyour-app-id',
     });
@@ -114,11 +120,12 @@ Future<void> firebaseForceUpdateCommand({
       await _remoteConfig.activate();
     }
 
-    // Log all fetched version values
-    debugPrint('[RemoteConfig] min_version_android    = \${_remoteConfig.getString(_minVersionAndroidKey)}');
-    debugPrint('[RemoteConfig] min_version_ios         = \${_remoteConfig.getString(_minVersionIosKey)}');
-    debugPrint('[RemoteConfig] latest_version_android  = \${_remoteConfig.getString(_latestVersionAndroidKey)}');
-    debugPrint('[RemoteConfig] latest_version_ios      = \${_remoteConfig.getString(_latestVersionIosKey)}');
+    // Log all fetched values
+    debugPrint('[RemoteConfig] is_force_update      = \${_remoteConfig.getBool(_isForceUpdateKey)}');
+    debugPrint('[RemoteConfig] min_version_android  = \${_remoteConfig.getString(_minVersionAndroidKey)}');
+    debugPrint('[RemoteConfig] min_version_ios      = \${_remoteConfig.getString(_minVersionIosKey)}');
+    debugPrint('[RemoteConfig] store_url_android    = \${_remoteConfig.getString(_storeUrlAndroidKey)}');
+    debugPrint('[RemoteConfig] store_url_ios        = \${_remoteConfig.getString(_storeUrlIosKey)}');
   }''';
 
   const isForceUpdateRequiredTemplate = '''Future<bool> isForceUpdateRequired() async {
@@ -129,8 +136,11 @@ Future<void> firebaseForceUpdateCommand({
         ? _remoteConfig.getString(_minVersionAndroidKey)
         : _remoteConfig.getString(_minVersionIosKey);
 
-    final isRequired = _isVersionLessThan(currentVersion, minVersion);
-    debugPrint('[ForceUpdate] current=\$currentVersion  min=\$minVersion  required=\$isRequired');
+    final isForceUpdate = _remoteConfig.getBool(_isForceUpdateKey);
+    final isVersionBelow = _isVersionLessThan(currentVersion, minVersion);
+
+    final isRequired = isForceUpdate && isVersionBelow;
+    debugPrint('[ForceUpdate] current=\$currentVersion  min=\$minVersion  isForceUpdate=\$isForceUpdate  required=\$isRequired');
     return isRequired;
   }''';
 
@@ -142,15 +152,13 @@ Future<void> firebaseForceUpdateCommand({
         ? _remoteConfig.getString(_minVersionAndroidKey)
         : _remoteConfig.getString(_minVersionIosKey);
 
-    final latestVersion = Platform.isAndroid
-        ? _remoteConfig.getString(_latestVersionAndroidKey)
-        : _remoteConfig.getString(_latestVersionIosKey);
+    final isForceUpdate = _remoteConfig.getBool(_isForceUpdateKey);
+    final isVersionBelow = _isVersionLessThan(currentVersion, minVersion);
 
-    // Must be >= min (not forced) AND < latest (an update exists)
-    final isAboveMin = !_isVersionLessThan(currentVersion, minVersion);
-    final isBelowLatest = _isVersionLessThan(currentVersion, latestVersion);
-    final isAvailable = isAboveMin && isBelowLatest;
-    debugPrint('[OptionalUpdate] current=\$currentVersion  min=\$minVersion  latest=\$latestVersion  available=\$isAvailable');
+    // If it's NOT a force update, but the version is below the minimum version,
+    // then it's an optional update.
+    final isAvailable = !isForceUpdate && isVersionBelow;
+    debugPrint('[OptionalUpdate] current=\$currentVersion  min=\$minVersion  isForceUpdate=\$isForceUpdate  available=\$isAvailable');
     return isAvailable;
   }''';
 
@@ -158,6 +166,36 @@ Future<void> firebaseForceUpdateCommand({
     return Platform.isAndroid
         ? _remoteConfig.getString(_storeUrlAndroidKey)
         : _remoteConfig.getString(_storeUrlIosKey);
+  }''';
+
+  const checkAndShowUpdateDialogTemplate = '''Future<void> checkAndShowUpdateDialog(BuildContext context) async {
+    // Check if the context contains a Navigator and MaterialLocalizations
+    if (Navigator.maybeOf(context) == null ||
+        Localizations.of<MaterialLocalizations>(context, MaterialLocalizations) == null) {
+      debugPrint(
+        '❌ [RemoteConfigService] Error: The BuildContext passed to checkAndShowUpdateDialog '
+        'does not contain a Navigator or MaterialLocalizations. This usually happens when '
+        'passing the context of a widget located above MaterialApp in the widget tree (e.g., '
+        'in the initState of the root MyApp widget).\\n'
+        '👉 Solution: Call checkAndShowUpdateDialog from a screen widget that is a child of '
+        'MaterialApp (like your HomeScreen/MyHomePage), or use a Builder widget inside MaterialApp.'
+      );
+      return;
+    }
+
+    if (await isForceUpdateRequired()) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => ForceUpdateDialog(storeUrl: getStoreUrl()),
+      );
+    } else if (await isOptionalUpdateAvailable()) {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => OptionalUpdateDialog(storeUrl: getStoreUrl()),
+      );
+    }
   }''';
 
   const isVersionLessThanTemplate = '''bool _isVersionLessThan(String current, String minimum) {
@@ -193,7 +231,263 @@ Future<void> firebaseForceUpdateCommand({
   CodeGeneratorHelper.addMethodIfMissing(path, 'RemoteConfigService', 'isOptionalUpdateAvailable', isOptionalUpdateAvailableTemplate);
   CodeGeneratorHelper.addMethodIfMissing(path, 'RemoteConfigService', 'isForceUpdateRequired', isForceUpdateRequiredTemplate);
   CodeGeneratorHelper.addMethodIfMissing(path, 'RemoteConfigService', 'getStoreUrl', getStoreUrlTemplate);
+  CodeGeneratorHelper.addMethodIfMissing(path, 'RemoteConfigService', 'checkAndShowUpdateDialog', checkAndShowUpdateDialogTemplate);
   CodeGeneratorHelper.addMethodIfMissing(path, 'RemoteConfigService', '_isVersionLessThan', isVersionLessThanTemplate);
+
+  // 7. Write dialogs UI file in the same directory as the service
+  final serviceFile = File(path);
+  final parentDir = serviceFile.parent;
+  if (!parentDir.existsSync()) {
+    parentDir.createSync(recursive: true);
+  }
+
+  final dialogsFile = File('${parentDir.path}/update_dialogs.dart');
+  
+  const dialogsTemplate = '''import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+class ForceUpdateDialog extends StatelessWidget {
+  final String storeUrl;
+
+  const ForceUpdateDialog({
+    Key? key,
+    required this.storeUrl,
+  }) : super(key: key);
+
+  Future<void> _launchStore() async {
+    final uri = Uri.parse(storeUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      debugPrint('Could not launch \$storeUrl');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async => false, // Prevent dismissing by back button
+      child: Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        elevation: 10,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.system_update_rounded,
+                  color: Colors.red.shade600,
+                  size: 40,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Update Required',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'A critical update is available. You must update the app to continue using it.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _launchStore,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                  ),
+                  child: const Text(
+                    'Update Now',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class OptionalUpdateDialog extends StatelessWidget {
+  final String storeUrl;
+
+  const OptionalUpdateDialog({
+    Key? key,
+    required this.storeUrl,
+  }) : super(key: key);
+
+  Future<void> _launchStore() async {
+    final uri = Uri.parse(storeUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      debugPrint('Could not launch \$storeUrl');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      elevation: 10,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.update_rounded,
+                color: Colors.blue.shade600,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Update Available',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'A new version of the app is available. Update now to enjoy the latest features and bug fixes.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Later',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _launchStore();
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade600,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                      ),
+                      child: const Text(
+                        'Update',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+''';
+
+  dialogsFile.writeAsStringSync(dialogsTemplate);
+  print('✅ Generated Dialog UI file: ${dialogsFile.path}');
 
   print('\n🎉 Firebase Force Update Service configured successfully at $path!');
 }
