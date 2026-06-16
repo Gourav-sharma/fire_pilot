@@ -51,12 +51,6 @@ Future<void> firebaseForceUpdateCommand({
     print('ℹ️ firebase_remote_config already exists in pubspec.yaml');
   }
 
-  if (!pubspecContent.contains('package_info_plus')) {
-    await flutter.addDep('package_info_plus');
-  } else {
-    print('ℹ️ package_info_plus already exists in pubspec.yaml');
-  }
-
   if (!pubspecContent.contains('url_launcher')) {
     await flutter.addDep('url_launcher');
   } else {
@@ -68,7 +62,6 @@ Future<void> firebaseForceUpdateCommand({
   // 4. Setup imports
   CodeGeneratorHelper.addImportIfMissing(path, "import 'dart:io';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:firebase_remote_config/firebase_remote_config.dart';");
-  CodeGeneratorHelper.addImportIfMissing(path, "import 'package:package_info_plus/package_info_plus.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:flutter/foundation.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:flutter/material.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'update_dialogs.dart';");
@@ -77,12 +70,19 @@ Future<void> firebaseForceUpdateCommand({
   const classTemplate = '''class RemoteConfigService {
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
+  // Track if we have already checked for updates to prevent multiple triggers in build methods
+  static bool _hasCheckedUpdate = false;
+
   // Force update boolean key — if true, force update is active; if false, optional update is active
   static const String _isForceUpdateKey = 'is_force_update';
 
-  // Target/minimum version keys (optional update if is_force_update is false)
+  // Target/minimum version keys
   static const String _minVersionAndroidKey = 'min_version_android';
   static const String _minVersionIosKey = 'min_version_ios';
+
+  // Current/latest version keys
+  static const String _currentVersionAndroidKey = 'current_version_android';
+  static const String _currentVersionIosKey = 'current_version_ios';
 
   // Store URLs
   static const String _storeUrlAndroidKey = 'store_url_android';
@@ -97,6 +97,8 @@ Future<void> firebaseForceUpdateCommand({
       _isForceUpdateKey: false,
       _minVersionAndroidKey: '1.0.0',
       _minVersionIosKey: '1.0.0',
+      _currentVersionAndroidKey: '1.0.0',
+      _currentVersionIosKey: '1.0.0',
       _storeUrlAndroidKey: 'https://play.google.com/store/apps/details?id=your.package.name',
       _storeUrlIosKey: 'https://apps.apple.com/app/idyour-app-id',
     });
@@ -124,13 +126,16 @@ Future<void> firebaseForceUpdateCommand({
     debugPrint('[RemoteConfig] is_force_update      = \${_remoteConfig.getBool(_isForceUpdateKey)}');
     debugPrint('[RemoteConfig] min_version_android  = \${_remoteConfig.getString(_minVersionAndroidKey)}');
     debugPrint('[RemoteConfig] min_version_ios      = \${_remoteConfig.getString(_minVersionIosKey)}');
+    debugPrint('[RemoteConfig] current_version_android = \${_remoteConfig.getString(_currentVersionAndroidKey)}');
+    debugPrint('[RemoteConfig] current_version_ios     = \${_remoteConfig.getString(_currentVersionIosKey)}');
     debugPrint('[RemoteConfig] store_url_android    = \${_remoteConfig.getString(_storeUrlAndroidKey)}');
     debugPrint('[RemoteConfig] store_url_ios        = \${_remoteConfig.getString(_storeUrlIosKey)}');
   }''';
 
   const isForceUpdateRequiredTemplate = '''Future<bool> isForceUpdateRequired() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    final currentVersion = packageInfo.version;
+    final currentVersion = Platform.isAndroid
+        ? _remoteConfig.getString(_currentVersionAndroidKey)
+        : _remoteConfig.getString(_currentVersionIosKey);
 
     final minVersion = Platform.isAndroid
         ? _remoteConfig.getString(_minVersionAndroidKey)
@@ -145,8 +150,9 @@ Future<void> firebaseForceUpdateCommand({
   }''';
 
   const isOptionalUpdateAvailableTemplate = '''Future<bool> isOptionalUpdateAvailable() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    final currentVersion = packageInfo.version;
+    final currentVersion = Platform.isAndroid
+        ? _remoteConfig.getString(_currentVersionAndroidKey)
+        : _remoteConfig.getString(_currentVersionIosKey);
 
     final minVersion = Platform.isAndroid
         ? _remoteConfig.getString(_minVersionAndroidKey)
@@ -169,6 +175,10 @@ Future<void> firebaseForceUpdateCommand({
   }''';
 
   const checkAndShowUpdateDialogTemplate = '''Future<void> checkAndShowUpdateDialog(BuildContext context) async {
+    // Check if we have already checked for updates to prevent multiple triggers during builds
+    if (_hasCheckedUpdate) return;
+    _hasCheckedUpdate = true;
+
     // Check if the context contains a Navigator and MaterialLocalizations
     if (Navigator.maybeOf(context) == null ||
         Localizations.of<MaterialLocalizations>(context, MaterialLocalizations) == null) {
@@ -180,6 +190,8 @@ Future<void> firebaseForceUpdateCommand({
         '👉 Solution: Call checkAndShowUpdateDialog from a screen widget that is a child of '
         'MaterialApp (like your HomeScreen/MyHomePage), or use a Builder widget inside MaterialApp.'
       );
+      // Reset flag so it can be retried with a valid context later if needed
+      _hasCheckedUpdate = false;
       return;
     }
 

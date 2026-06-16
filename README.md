@@ -61,9 +61,11 @@ In your Firebase Console, navigate to **Remote Config** and add the following pa
 
 | Parameter Key | Type | Default Value | Description |
 |---|---|---|---|
-| `is_force_update` | Boolean | `false` | If `true`, a non-dismissible force update is triggered. If `false`, a dismissible optional update is triggered. |
-| `min_version_android` | String | `1.0.0` | The minimum required/recommended version for Android (e.g., `1.1.0`). |
-| `min_version_ios` | String | `1.0.0` | The minimum required/recommended version for iOS (e.g., `1.1.0`). |
+| `is_force_update` | Boolean | `false` | If `true`, a non-dismissible force update is triggered when the app version is below the minimum version. |
+| `min_version_android` | String | `1.0.0` | The minimum required version for Android below which force update is triggered (if `is_force_update` is enabled). |
+| `min_version_ios` | String | `1.0.0` | The minimum required version for iOS below which force update is triggered (if `is_force_update` is enabled). |
+| `current_version_android` | String | `1.0.0` | The latest available version for Android. Triggers optional update if the app version is below this but not forcing update. |
+| `current_version_ios` | String | `1.0.0` | The latest available version for iOS. Triggers optional update if the app version is below this but not forcing update. |
 | `store_url_android` | String | `https://play.google.com/store/apps/details?id=your.package` | Play Store URL of your app. |
 | `store_url_ios` | String | `https://apps.apple.com/app/idyour-app-id` | App Store URL of your app. |
 

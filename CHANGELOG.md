@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-06-16
+
+### 🚀 Firebase Force Update Enhancements
+
+- **Fully Remote Version Checks**: Modified the `firebase force-update` code templates to fetch the current version from Remote Config (`current_version_android` / `current_version_ios`), making the entire update mechanism configurable from the cloud.
+- **Removed local dependencies**: Removed `package_info_plus` dependency checks and import generation from the generator template.
+- **Duplicate Checking Safeguard**: Added a static variable safeguard (`_hasCheckedUpdate`) inside the generated `RemoteConfigService` class template to prevent duplicate dialog popups when running within build methods.
+- **Documentation**: Updated the `README.md` to cover setup instructions for the new Remote Config variables.
+
 ## [1.0.3] - 2026-06-15
 
 ### 🛠️ FlutterFire & Project Creation Fixes
