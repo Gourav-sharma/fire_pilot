@@ -59,15 +59,15 @@ This command will:
 #### 🛰️ Firebase Console Setup
 In your Firebase Console, navigate to **Remote Config** and add the following parameters:
 
-| Parameter Key | Type | Default Value | Description |
-|---|---|---|---|
-| `is_force_update` | Boolean | `false` | If `true`, a non-dismissible force update is triggered when the app version is below the minimum version. |
-| `min_version_android` | String | `1.0.0` | The minimum required version for Android below which force update is triggered (if `is_force_update` is enabled). |
-| `min_version_ios` | String | `1.0.0` | The minimum required version for iOS below which force update is triggered (if `is_force_update` is enabled). |
-| `current_version_android` | String | `1.0.0` | The latest available version for Android. Triggers optional update if the app version is below this but not forcing update. |
-| `current_version_ios` | String | `1.0.0` | The latest available version for iOS. Triggers optional update if the app version is below this but not forcing update. |
-| `store_url_android` | String | `https://play.google.com/store/apps/details?id=your.package` | Play Store URL of your app. |
-| `store_url_ios` | String | `https://apps.apple.com/app/idyour-app-id` | App Store URL of your app. |
+| Parameter Key            | Type | Default Value | Description |
+|--------------------------|---|---|---|
+| `is_force_update`        | Boolean | `false` | If `true`, all users with an app version below the latest version (`current_version`) will be forced to update. |
+| `min_version_android`    | String | `1.0.0` | The minimum required Android version. Users below this version are always forced to update (even if `is_force_update` is `false`). |
+| `min_version_ios`        | String | `1.0.0` | The minimum required iOS version. Users below this version are always forced to update (even if `is_force_update` is `false`). |
+| `latest_version_android` | String | `1.0.0` | The latest available Android version. Triggers force update if `is_force_update` is `true`, otherwise triggers optional update for older versions. |
+| `latest_version_ios`     | String | `1.0.0` | The latest available iOS version. Triggers force update if `is_force_update` is `true`, otherwise triggers optional update for older versions. |
+| `store_url_android`      | String | `https://play.google.com/store/apps/details?id=your.package` | Play Store URL of your app. |
+| `store_url_ios`          | String | `https://apps.apple.com/app/idyour-app-id` | App Store URL of your app. |
 
 #### 💻 Integration Code Snippet
 To use the generated service in your Flutter application:
@@ -98,6 +98,28 @@ To use the generated service in your Flutter application:
      });
    }
    ```
+
+#### 🧪 Testing Force Updates (QA & Development)
+
+To safely test the Force/Optional update popups with your QA team or developers without impacting live production users (if you share the same Firebase Project), you can use custom **Firebase User Properties**:
+
+1. **Add Firebase Analytics**: Ensure `firebase_analytics` is set up in your Flutter project.
+2. **Set User Property on QA Devices**: Set a custom property (e.g., `app_environment` = `qa`) on devices used by developers or QA testers. This can be enabled dynamically (e.g., using `kDebugMode` or an environment flag):
+   ```dart
+   import 'package:firebase_analytics/firebase_analytics.dart';
+
+   await FirebaseAnalytics.instance.setUserProperty(
+     name: 'app_environment',
+     value: 'qa',
+   );
+   ```
+3. **Configure Remote Config Values**:
+   - Go to your Firebase Console under **Remote Config**.
+   - Edit the parameter you want to test (e.g., `is_force_update` or `min_version_android`).
+   - Click **Add value for condition** -> **Create new condition**.
+   - Define a condition (e.g., "QA Testers") based on **User Property** where `app_environment` matches `qa`.
+   - Set the overridden values for this condition (e.g. `is_force_update = true`).
+   - Save and publish. Only devices with the `app_environment` user property set to `qa` will receive the overridden values.
 
 ---
 

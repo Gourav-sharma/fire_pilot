@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-07-03
+
+### 🚀 Firebase Force Update Fixes
+
+- **Corrected Force/Optional Update Logic**: Modified the generated template to compare the local app version (retrieved via `package_info_plus`) against remote config version parameters (`min_version` and `current_version`).
+- **Dependency & Import Fixes**: Restored `package_info_plus` automatic dependency addition and imports in the generated service template.
+- **Improved Dialog Triggering Rules**:
+  - If `is_force_update` is `false`, users on dangerously old versions (below `min_version`) are still forced to update.
+  - If `is_force_update` is `true`, all users below `current_version` are forced to update.
+
 ## [1.0.4] - 2026-06-16
 
 ### 🚀 Firebase Force Update Enhancements

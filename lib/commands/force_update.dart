@@ -51,6 +51,12 @@ Future<void> firebaseForceUpdateCommand({
     print('ℹ️ firebase_remote_config already exists in pubspec.yaml');
   }
 
+  if (!pubspecContent.contains('package_info_plus')) {
+    await flutter.addDep('package_info_plus');
+  } else {
+    print('ℹ️ package_info_plus already exists in pubspec.yaml');
+  }
+
   if (!pubspecContent.contains('url_launcher')) {
     await flutter.addDep('url_launcher');
   } else {
@@ -64,6 +70,7 @@ Future<void> firebaseForceUpdateCommand({
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:firebase_remote_config/firebase_remote_config.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:flutter/foundation.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'package:flutter/material.dart';");
+  CodeGeneratorHelper.addImportIfMissing(path, "import 'package:package_info_plus/package_info_plus.dart';");
   CodeGeneratorHelper.addImportIfMissing(path, "import 'update_dialogs.dart';");
 
   // 5. Setup Class
@@ -73,6 +80,9 @@ Future<void> firebaseForceUpdateCommand({
   // Track if we have already checked for updates to prevent multiple triggers in build methods
   static bool _hasCheckedUpdate = false;
 
+  // The installed app version, read from the package itself (not from Remote Config).
+  static String? _installedVersion;
+
   // Force update boolean key — if true, force update is active; if false, optional update is active
   static const String _isForceUpdateKey = 'is_force_update';
 
@@ -81,8 +91,8 @@ Future<void> firebaseForceUpdateCommand({
   static const String _minVersionIosKey = 'min_version_ios';
 
   // Current/latest version keys
-  static const String _currentVersionAndroidKey = 'current_version_android';
-  static const String _currentVersionIosKey = 'current_version_ios';
+  static const String _latestVersionAndroidKey = 'latest_version_android';
+  static const String _currentVersionIosKey = 'latest_version_ios';
 
   // Store URLs
   static const String _storeUrlAndroidKey = 'store_url_android';
@@ -93,11 +103,19 @@ Future<void> firebaseForceUpdateCommand({
 
   // 6. Setup Methods
   const initializeTemplate = '''Future<void> initialize() async {
+    // Read the installed app version from the package.
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      _installedVersion = packageInfo.version;
+    } catch (e) {
+      debugPrint('[RemoteConfig] Failed to read package info: \$e');
+    }
+
     await _remoteConfig.setDefaults({
       _isForceUpdateKey: false,
       _minVersionAndroidKey: '1.0.0',
       _minVersionIosKey: '1.0.0',
-      _currentVersionAndroidKey: '1.0.0',
+      _latestVersionAndroidKey: '1.0.0',
       _currentVersionIosKey: '1.0.0',
       _storeUrlAndroidKey: 'https://play.google.com/store/apps/details?id=your.package.name',
       _storeUrlIosKey: 'https://apps.apple.com/app/idyour-app-id',
@@ -123,48 +141,80 @@ Future<void> firebaseForceUpdateCommand({
     }
 
     // Log all fetched values
+    debugPrint('[RemoteConfig] installed_version    = \$_installedVersion');
     debugPrint('[RemoteConfig] is_force_update      = \${_remoteConfig.getBool(_isForceUpdateKey)}');
     debugPrint('[RemoteConfig] min_version_android  = \${_remoteConfig.getString(_minVersionAndroidKey)}');
     debugPrint('[RemoteConfig] min_version_ios      = \${_remoteConfig.getString(_minVersionIosKey)}');
-    debugPrint('[RemoteConfig] current_version_android = \${_remoteConfig.getString(_currentVersionAndroidKey)}');
-    debugPrint('[RemoteConfig] current_version_ios     = \${_remoteConfig.getString(_currentVersionIosKey)}');
+    debugPrint('[RemoteConfig] latest_version_android = \${_remoteConfig.getString(_latestVersionAndroidKey)}');
+    debugPrint('[RemoteConfig] latest_version_ios     = \${_remoteConfig.getString(_currentVersionIosKey)}');
     debugPrint('[RemoteConfig] store_url_android    = \${_remoteConfig.getString(_storeUrlAndroidKey)}');
     debugPrint('[RemoteConfig] store_url_ios        = \${_remoteConfig.getString(_storeUrlIosKey)}');
   }''';
 
   const isForceUpdateRequiredTemplate = '''Future<bool> isForceUpdateRequired() async {
-    final currentVersion = Platform.isAndroid
-        ? _remoteConfig.getString(_currentVersionAndroidKey)
-        : _remoteConfig.getString(_currentVersionIosKey);
+    if (_installedVersion == null) {
+      try {
+        final packageInfo = await PackageInfo.fromPlatform();
+        _installedVersion = packageInfo.version;
+      } catch (_) {
+        _installedVersion = '0.0.0';
+      }
+    }
+    final localVersion = _installedVersion!;
 
     final minVersion = Platform.isAndroid
         ? _remoteConfig.getString(_minVersionAndroidKey)
         : _remoteConfig.getString(_minVersionIosKey);
 
-    final isForceUpdate = _remoteConfig.getBool(_isForceUpdateKey);
-    final isVersionBelow = _isVersionLessThan(currentVersion, minVersion);
+    final currentVersion = Platform.isAndroid
+        ? _remoteConfig.getString(_latestVersionAndroidKey)
+        : _remoteConfig.getString(_currentVersionIosKey);
 
-    final isRequired = isForceUpdate && isVersionBelow;
-    debugPrint('[ForceUpdate] current=\$currentVersion  min=\$minVersion  isForceUpdate=\$isForceUpdate  required=\$isRequired');
+    final isForceUpdate = _remoteConfig.getBool(_isForceUpdateKey);
+    
+    final isBelowMin = _isVersionLessThan(localVersion, minVersion);
+    final isBelowCurrent = _isVersionLessThan(localVersion, currentVersion);
+
+    // Force update is required if:
+    // - Local version is below the minimum version, OR
+    // - The is_force_update flag is true AND local version is below the current version
+    final isRequired = isBelowMin || (isForceUpdate && isBelowCurrent);
+    
+    debugPrint('[ForceUpdate] local=\$localVersion  min=\$minVersion  current=\$currentVersion  isForceUpdate=\$isForceUpdate  required=\$isRequired');
     return isRequired;
   }''';
 
   const isOptionalUpdateAvailableTemplate = '''Future<bool> isOptionalUpdateAvailable() async {
-    final currentVersion = Platform.isAndroid
-        ? _remoteConfig.getString(_currentVersionAndroidKey)
-        : _remoteConfig.getString(_currentVersionIosKey);
+    if (_installedVersion == null) {
+      try {
+        final packageInfo = await PackageInfo.fromPlatform();
+        _installedVersion = packageInfo.version;
+      } catch (_) {
+        _installedVersion = '0.0.0';
+      }
+    }
+    final localVersion = _installedVersion!;
 
     final minVersion = Platform.isAndroid
         ? _remoteConfig.getString(_minVersionAndroidKey)
         : _remoteConfig.getString(_minVersionIosKey);
 
-    final isForceUpdate = _remoteConfig.getBool(_isForceUpdateKey);
-    final isVersionBelow = _isVersionLessThan(currentVersion, minVersion);
+    final currentVersion = Platform.isAndroid
+        ? _remoteConfig.getString(_latestVersionAndroidKey)
+        : _remoteConfig.getString(_currentVersionIosKey);
 
-    // If it's NOT a force update, but the version is below the minimum version,
-    // then it's an optional update.
-    final isAvailable = !isForceUpdate && isVersionBelow;
-    debugPrint('[OptionalUpdate] current=\$currentVersion  min=\$minVersion  isForceUpdate=\$isForceUpdate  available=\$isAvailable');
+    final isForceUpdate = _remoteConfig.getBool(_isForceUpdateKey);
+    
+    final isBelowMin = _isVersionLessThan(localVersion, minVersion);
+    final isBelowCurrent = _isVersionLessThan(localVersion, currentVersion);
+
+    // Optional update is available if:
+    // - Local version is below the current version
+    // - And it is NOT a force update (meaning local version is NOT below min, and isForceUpdate flag is false)
+    final isForceRequired = isBelowMin || (isForceUpdate && isBelowCurrent);
+    final isAvailable = isBelowCurrent && !isForceRequired;
+    
+    debugPrint('[OptionalUpdate] local=\$localVersion  min=\$minVersion  current=\$currentVersion  isForceUpdate=\$isForceUpdate  available=\$isAvailable');
     return isAvailable;
   }''';
 
@@ -254,7 +304,7 @@ Future<void> firebaseForceUpdateCommand({
   }
 
   final dialogsFile = File('${parentDir.path}/update_dialogs.dart');
-  
+
   const dialogsTemplate = '''import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';

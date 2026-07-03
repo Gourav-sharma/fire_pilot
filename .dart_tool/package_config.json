@@ -75,8 +75,8 @@
     }
   ],
   "generator": "pub",
-  "generatorVersion": "3.9.2",
-  "flutterRoot": "file:///D:/setup/flutter_windows_3.35.5-stable/flutter",
-  "flutterVersion": "3.35.5",
+  "generatorVersion": "3.11.5",
+  "flutterRoot": "file:///D:/setup/flutter_windows_3.41.9-stable/flutter",
+  "flutterVersion": "3.41.9",
   "pubCache": "file:///C:/Users/GOURAV/AppData/Local/Pub/Cache"
 }
